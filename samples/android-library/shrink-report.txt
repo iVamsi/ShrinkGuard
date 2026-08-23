@@ -1,0 +1,24 @@
+# ShrinkGuard R8 Report
+# Library: android-library
+
+## Summary
+Public API members: 4
+Public API surviving unchanged: 1 (25.0%)
+Public API renamed/inlined: 3
+Internal members kept by consumer rules: 0
+Dead code members stripped: 3
+Rule violations: 0
+
+## Kept Public API Surface
+class com.example.android.crypto.CryptoStorage
+
+## Renamed / Inlined Public Members
+com.example.android.crypto.CryptoStorage#<init>()V -> <inlined/stripped>
+com.example.android.crypto.CryptoStorage#decrypt(Ljava/lang/String;)Ljava/lang/String; -> <inlined/stripped>
+com.example.android.crypto.CryptoStorage#encrypt(Ljava/lang/String;)Ljava/lang/String; -> <inlined/stripped>
+
+## Applied Consumer Rules
+-keepclassmembers class com.example.android.crypto.internal.KeyGeneratorImpl {
+public <init>();
+public byte[] generateKey();
+}

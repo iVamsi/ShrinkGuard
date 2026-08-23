@@ -1,0 +1,44 @@
+# ShrinkGuard R8 Report
+# Library: jvm-library
+
+## Summary
+Public API members: 14
+Public API surviving unchanged: 2 (14.3%)
+Public API renamed/inlined: 12
+Internal members kept by consumer rules: 4
+Dead code members stripped: 4
+Rule violations: 0
+
+## Kept Public API Surface
+class com.example.currency.CurrencyService
+class com.example.currency.Money
+
+## Renamed / Inlined Public Members
+com.example.currency.CurrencyService#<init>()V -> <inlined/stripped>
+com.example.currency.CurrencyService#convert(Lcom/example/currency/Money;D)Lcom/example/currency/Money; -> <inlined/stripped>
+com.example.currency.Money#<init>(JLjava/lang/String;)V -> <inlined/stripped>
+com.example.currency.Money#component1()J -> <inlined/stripped>
+com.example.currency.Money#component2()Ljava/lang/String; -> <inlined/stripped>
+com.example.currency.Money#copy(JLjava/lang/String;)Lcom/example/currency/Money; -> <inlined/stripped>
+com.example.currency.Money#equals(Ljava/lang/Object;)Z -> <inlined/stripped>
+com.example.currency.Money#formatted()Ljava/lang/String; -> <inlined/stripped>
+com.example.currency.Money#getAmountMicros()J -> <inlined/stripped>
+com.example.currency.Money#getCurrencyCode()Ljava/lang/String; -> <inlined/stripped>
+com.example.currency.Money#hashCode()I -> <inlined/stripped>
+com.example.currency.Money#toString()Ljava/lang/String; -> <inlined/stripped>
+
+## Internal Members Kept by Consumer Rules
+class com.example.currency.CurrencyService {
+    method serializer_delegate$lambda$0 ()Ljava/lang/Object;
+}
+class com.example.currency.Money {
+    field amountMicros J
+    field currencyCode Ljava/lang/String;
+}
+class com.example.currency.internal.RateSerializer
+
+## Applied Consumer Rules
+-keepclassmembers class com.example.currency.internal.RateSerializer {
+public <init>();
+public java.lang.String serialize(com.example.currency.Money);
+}

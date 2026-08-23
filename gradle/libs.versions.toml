@@ -1,0 +1,22 @@
+[versions]
+kotlin = "2.1.0"
+agp = "8.7.3"
+r8 = "8.5.35"
+asm = "9.7.1"
+junit = "5.11.4"
+assertj = "3.27.2"
+mavenPublish = "0.30.0"
+
+[libraries]
+r8 = { module = "com.android.tools:r8", version.ref = "r8" }
+asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
+asm-commons = { module = "org.ow2.asm:asm-commons", version.ref = "asm" }
+asm-tree = { module = "org.ow2.asm:asm-tree", version.ref = "asm" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+agp = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+vanniktech-maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "mavenPublish" }
