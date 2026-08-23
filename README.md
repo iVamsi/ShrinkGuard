@@ -2,7 +2,7 @@
 
 R8 fitness harness and consumer rules linter for Kotlin and Android libraries.
 
-R8 full mode has been the default since AGP 8.0. Google's guidance for library authors makes two demands: your library must not break under full mode, and your `consumer-rules.pro` must remain narrow because broad rules bloat every app that depends on you.
+R8 full mode has been the default since AGP 8.0. [Google's guidance for library authors](https://developer.android.com/build/shrink-code#configuration-files) makes two demands: your library must not break under full mode, and your `consumer-rules.pro` must remain narrow because broad rules bloat every app that depends on you.
 
 ShrinkGuard brings the `binary-compatibility-validator` (`apiDump` / `apiCheck`) workflow to R8 shrinking:
 
