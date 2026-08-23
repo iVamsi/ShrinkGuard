@@ -188,4 +188,47 @@ class ShrinkGuardPluginTest {
 
         assertEquals(TaskOutcome.SUCCESS, checkAfterUpdate.task(":shrinkCheck")?.outcome)
     }
+
+    @Test
+    fun `shrinkCheck ignores toxic flags in proguard-rules pro because that file is not consumer rules`() {
+        buildFile.writeText(
+            """
+            plugins {
+                kotlin("jvm") version "2.1.0"
+                id("io.github.ivamsi.shrinkguard")
+            }
+
+            repositories {
+                mavenCentral()
+                google()
+            }
+            """.trimIndent()
+        )
+
+        val srcDir = File(testProjectDir, "src/main/kotlin/com/example")
+        srcDir.mkdirs()
+        File(srcDir, "Lib.kt").writeText(
+            """
+            package com.example
+            class Lib {
+                fun ping(): String = "ok"
+            }
+            """.trimIndent()
+        )
+        File(testProjectDir, "proguard-rules.pro").writeText("-dontobfuscate\n")
+
+        GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withPluginClasspath()
+            .withArguments("shrinkReport")
+            .build()
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withPluginClasspath()
+            .withArguments("shrinkCheck")
+            .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":shrinkCheck")?.outcome)
+    }
 }

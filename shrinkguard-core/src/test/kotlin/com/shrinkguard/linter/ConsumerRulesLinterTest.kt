@@ -60,4 +60,40 @@ class ConsumerRulesLinterTest {
         assertFalse(result.hasWarnings)
         assertTrue(result.isValid)
     }
+
+    @Test
+    fun `allowlist matches a full rule not a substring`() {
+        val linter = ConsumerRulesLinter(
+            RuleLintConfig(allowlistRules = setOf("keep"))
+        )
+        val result = linter.lintContent("-keep class com.example.** { *; }")
+
+        assertTrue(result.hasWarnings)
+    }
+
+    @Test
+    fun `allowlist skips the exact rule`() {
+        val rule = "-keep class com.example.** { *; }"
+        val linter = ConsumerRulesLinter(
+            RuleLintConfig(allowlistRules = setOf(rule))
+        )
+        val result = linter.lintContent(rule)
+
+        assertFalse(result.hasErrors)
+        assertFalse(result.hasWarnings)
+    }
+
+    @Test
+    fun `flags keep of every class with every member`() {
+        val result = linter.lintContent("-keep class * { *; }")
+
+        assertTrue(result.hasWarnings)
+    }
+
+    @Test
+    fun `flags keepclassmembers on a star package`() {
+        val result = linter.lintContent("-keepclassmembers class com.example.** { *; }")
+
+        assertTrue(result.hasWarnings)
+    }
 }

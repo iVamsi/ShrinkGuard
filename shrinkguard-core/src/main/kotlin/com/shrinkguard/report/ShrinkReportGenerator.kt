@@ -13,92 +13,22 @@ class ShrinkReportGenerator {
         libraryName: String,
         publicMembers: List<MemberInfo>,
         allLibraryMembers: List<MemberInfo>,
+        survivors: Set<MemberKey>,
         mappings: Map<String, ClassMapping>,
         appliedRules: List<String>,
         violations: List<RuleViolation> = emptyList()
     ): ShrinkReport {
-        val survivingPublic = mutableListOf<MemberInfo>()
-        val renamedOrInlinedPublic = mutableListOf<MemberInfo>()
-        val internalKept = mutableListOf<MemberInfo>()
-        val stripped = mutableListOf<MemberInfo>()
+        val analyzer = SurvivalAnalyzer()
+
+        val analysedPublic = analyzer.analyze(publicMembers, survivors, mappings)
+        val survivingPublic = analysedPublic.filter { it.survivalStatus == SurvivalStatus.KEPT_UNCHANGED }
+        val renamedOrInlinedPublic = analysedPublic.filter { it.survivalStatus != SurvivalStatus.KEPT_UNCHANGED }
 
         val publicSignatures = publicMembers.map { it.formattedSignature() }.toSet()
-
-        for (member in publicMembers) {
-            val classMapping = mappings[member.ownerClass]
-            if (classMapping != null) {
-                if (member.kind == MemberKind.CLASS) {
-                    if (!classMapping.isRenamed) {
-                        survivingPublic.add(member.copy(survivalStatus = SurvivalStatus.KEPT_UNCHANGED))
-                    } else {
-                        renamedOrInlinedPublic.add(
-                            member.copy(
-                                survivalStatus = SurvivalStatus.RENAMED,
-                                obfuscatedName = classMapping.obfuscatedName
-                            )
-                        )
-                    }
-                } else {
-                    val matchingMember = classMapping.members.find { it.originalName == member.memberName }
-                    if (matchingMember != null) {
-                        if (matchingMember.originalName == matchingMember.obfuscatedName && !classMapping.isRenamed) {
-                            survivingPublic.add(member.copy(survivalStatus = SurvivalStatus.KEPT_UNCHANGED))
-                        } else {
-                            renamedOrInlinedPublic.add(
-                                member.copy(
-                                    survivalStatus = SurvivalStatus.RENAMED,
-                                    obfuscatedName = matchingMember.obfuscatedName
-                                )
-                            )
-                        }
-                    } else {
-                        renamedOrInlinedPublic.add(
-                            member.copy(
-                                survivalStatus = SurvivalStatus.INLINED_OR_STRIPPED,
-                                obfuscatedName = "<inlined/stripped>"
-                            )
-                        )
-                    }
-                }
-            } else {
-                renamedOrInlinedPublic.add(
-                    member.copy(
-                        survivalStatus = SurvivalStatus.INLINED_OR_STRIPPED,
-                        obfuscatedName = "<inlined/stripped>"
-                    )
-                )
-            }
-        }
-
-        // Internal members check
         val internalMembers = allLibraryMembers.filter { it.formattedSignature() !in publicSignatures }
-        for (member in internalMembers) {
-            val classMapping = mappings[member.ownerClass]
-            if (classMapping != null) {
-                if (member.kind == MemberKind.CLASS) {
-                    internalKept.add(
-                        member.copy(
-                            survivalStatus = SurvivalStatus.KEPT_BY_CONSUMER_RULE,
-                            obfuscatedName = classMapping.obfuscatedName
-                        )
-                    )
-                } else {
-                    val matchingMember = classMapping.members.find { it.originalName == member.memberName }
-                    if (matchingMember != null) {
-                        internalKept.add(
-                            member.copy(
-                                survivalStatus = SurvivalStatus.KEPT_BY_CONSUMER_RULE,
-                                obfuscatedName = matchingMember.obfuscatedName
-                            )
-                        )
-                    } else {
-                        stripped.add(member.copy(survivalStatus = SurvivalStatus.INLINED_OR_STRIPPED))
-                    }
-                }
-            } else {
-                stripped.add(member.copy(survivalStatus = SurvivalStatus.INLINED_OR_STRIPPED))
-            }
-        }
+        val analysedInternal = analyzer.analyze(internalMembers, survivors, mappings)
+        val internalKept = analysedInternal.filter { it.survivalStatus != SurvivalStatus.INLINED_OR_STRIPPED }
+        val stripped = analysedInternal.filter { it.survivalStatus == SurvivalStatus.INLINED_OR_STRIPPED }
 
         return ShrinkReport(
             libraryName = libraryName,
@@ -118,7 +48,7 @@ class ShrinkReportGenerator {
 
         val totalPublic = report.publicMembersSurviving.size + report.publicMembersRenamedOrInlined.size
         val survivalPercent = if (totalPublic > 0) {
-            String.format("%.1f", (report.publicMembersSurviving.size.toDouble() / totalPublic) * 100.0)
+            String.format(java.util.Locale.ROOT, "%.1f", (report.publicMembersSurviving.size.toDouble() / totalPublic) * 100.0)
         } else {
             "100.0"
         }
@@ -126,8 +56,12 @@ class ShrinkReportGenerator {
         sb.append("## Summary\n")
         sb.append("Public API members: $totalPublic\n")
         sb.append("Public API surviving unchanged: ${report.publicMembersSurviving.size} ($survivalPercent%)\n")
-        sb.append("Public API renamed/inlined: ${report.publicMembersRenamedOrInlined.size}\n")
-        sb.append("Internal members kept by consumer rules: ${report.internalMembersKept.size}\n")
+        // Renaming is ordinary R8 behaviour. Removal is the outcome that breaks reflection.
+        val renamed = report.publicMembersRenamedOrInlined.count { it.survivalStatus == SurvivalStatus.RENAMED }
+        val removed = report.publicMembersRenamedOrInlined.count { it.survivalStatus == SurvivalStatus.INLINED_OR_STRIPPED }
+        sb.append("Public API renamed: $renamed\n")
+        sb.append("Public API removed: $removed\n")
+        sb.append("Internal members retained: ${report.internalMembersKept.size}\n")
         sb.append("Dead code members stripped: ${report.deadCodeStripped.size}\n")
         sb.append("Rule violations: ${report.ruleViolations.size}\n\n")
 
@@ -144,15 +78,19 @@ class ShrinkReportGenerator {
         sb.append("\n")
 
         if (report.publicMembersRenamedOrInlined.isNotEmpty()) {
-            sb.append("## Renamed / Inlined Public Members\n")
+            sb.append("## Renamed or Removed Public Members\n")
             for (member in report.publicMembersRenamedOrInlined) {
-                sb.append("${member.formattedSignature()} -> ${member.obfuscatedName ?: "<inlined>"}\n")
+                val fate = when (member.survivalStatus) {
+                    SurvivalStatus.INLINED_OR_STRIPPED -> "<removed>"
+                    else -> member.obfuscatedName ?: "<renamed>"
+                }
+                sb.append("${member.formattedSignature()} -> $fate\n")
             }
             sb.append("\n")
         }
 
         if (report.internalMembersKept.isNotEmpty()) {
-            sb.append("## Internal Members Kept by Consumer Rules\n")
+            sb.append("## Internal Members Retained\n")
             renderGroupedMembers(report.internalMembersKept, sb)
             sb.append("\n")
         }

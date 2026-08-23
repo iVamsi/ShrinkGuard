@@ -1,28 +1,25 @@
 package com.shrinkguard.gradle.tasks
 
-import com.shrinkguard.api.PublicApiExtractor
-import com.shrinkguard.consumer.SyntheticConsumerGenerator
+import com.shrinkguard.ShrinkAnalysis
+import com.shrinkguard.ShrinkAnalysisException
 import com.shrinkguard.linter.ConsumerRulesLinter
 import com.shrinkguard.linter.RuleLintConfig
-import com.shrinkguard.model.MemberInfo
 import com.shrinkguard.model.RuleSeverity
-import com.shrinkguard.r8.DirectR8Runner
-import com.shrinkguard.r8.R8ExecutionRequest
-import com.shrinkguard.report.MappingParser
-import com.shrinkguard.report.ShrinkReportGenerator
+import com.shrinkguard.model.RuleViolation
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.SetProperty
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
-import java.io.File
 
 abstract class ShrinkReportTask : DefaultTask() {
 
@@ -47,6 +44,12 @@ abstract class ShrinkReportTask : DefaultTask() {
     @get:Input
     abstract val allowlistRules: SetProperty<String>
 
+    @get:Input
+    abstract val libraryName: Property<String>
+
+    @get:Internal
+    abstract val workingDirectory: DirectoryProperty
+
     @get:OutputFile
     abstract val baselineFile: RegularFileProperty
 
@@ -57,9 +60,6 @@ abstract class ShrinkReportTask : DefaultTask() {
 
     @TaskAction
     fun run() {
-        val workingDir = File(project.layout.buildDirectory.asFile.get(), "shrinkguard/work")
-        workingDir.mkdirs()
-
         val rulesList = rulesFiles.files.filter { it.exists() }
         val linter = ConsumerRulesLinter(
             RuleLintConfig(
@@ -69,86 +69,37 @@ abstract class ShrinkReportTask : DefaultTask() {
             )
         )
 
-        val violations = mutableListOf<com.shrinkguard.model.RuleViolation>()
+        val violations = mutableListOf<RuleViolation>()
         val appliedRules = mutableListOf<String>()
         for (ruleFile in rulesList) {
-            val result = linter.lintFile(ruleFile)
-            violations.addAll(result.violations)
+            violations.addAll(linter.lintFile(ruleFile).violations)
             appliedRules.addAll(ruleFile.readLines().filter { it.isNotBlank() && !it.startsWith("#") })
         }
 
         val toxicErrors = violations.filter { it.severity == RuleSeverity.ERROR }
         if (toxicErrors.isNotEmpty() && failOnToxicFlags.get()) {
-            val errorMsg = buildString {
-                appendLine("ShrinkGuard found toxic ProGuard/R8 directives in consumer rules:")
-                for (err in toxicErrors) {
-                    appendLine(err.format())
+            throw GradleException(
+                buildString {
+                    appendLine("ShrinkGuard found toxic ProGuard/R8 directives in consumer rules:")
+                    for (error in toxicErrors) appendLine(error.format())
                 }
-            }
-            throw GradleException(errorMsg)
-        }
-
-        // 1. Extract Public API and all classes
-        val extractor = PublicApiExtractor()
-        val publicMembers = mutableListOf<MemberInfo>()
-        val allMembers = mutableListOf<MemberInfo>()
-
-        for (dir in classDirectories.files) {
-            if (dir.exists()) {
-                val extracted = extractor.extract(dir)
-                publicMembers.addAll(extracted.publicMembers)
-                allMembers.addAll(extracted.allMembers)
-            }
-        }
-
-        // 2. Synthesize Consumer
-        val consumerGen = SyntheticConsumerGenerator()
-        val synthJar = File(workingDir, "synthetic-consumer.jar")
-        consumerGen.generateConsumerJar(publicMembers, synthJar)
-
-        val synthRules = buildString {
-            appendLine(consumerGen.generateConsumerKeepRules())
-            appendLine(consumerGen.generateSyntheticKeepRulesForPublicApi(publicMembers))
-        }
-
-        // 3. Invoke R8
-        val r8Runner = DirectR8Runner()
-        val r8OutputDir = File(workingDir, "r8-out")
-        val programInputs = classDirectories.files.filter { it.exists() } + listOf(synthJar)
-        val libraryInputs = classpath.files.filter { it.exists() }
-
-        val r8Result = r8Runner.runR8(
-            R8ExecutionRequest(
-                programFiles = programInputs,
-                libraryFiles = libraryInputs,
-                proguardRules = listOf(synthRules),
-                proguardRuleFiles = rulesList,
-                outputDir = r8OutputDir,
-                isFullMode = true
             )
-        )
-
-        val mappingFile = r8Result.mappingFile
-        if (!r8Result.isSuccess || mappingFile == null) {
-            val diag = r8Result.diagnostics.joinToString("\n")
-            throw GradleException("ShrinkGuard R8 execution failed:\n$diag", r8Result.exception)
         }
 
-        // 4. Parse mapping & generate report
-        val mappingParser = MappingParser()
-        val mappings = mappingParser.parse(mappingFile)
+        val reportText = try {
+            ShrinkAnalysis().analyze(
+                libraryName = libraryName.get(),
+                classDirectories = classDirectories.files.toList(),
+                classpath = classpath.files.toList(),
+                rulesFiles = rulesList,
+                workingDir = workingDirectory.get().asFile,
+                appliedRules = appliedRules,
+                violations = violations
+            )
+        } catch (e: ShrinkAnalysisException) {
+            throw GradleException(e.message ?: "ShrinkGuard analysis failed", e.cause)
+        }
 
-        val reportGen = ShrinkReportGenerator()
-        val report = reportGen.generateReport(
-            libraryName = project.name,
-            publicMembers = publicMembers,
-            allLibraryMembers = allMembers,
-            mappings = mappings,
-            appliedRules = appliedRules,
-            violations = violations
-        )
-
-        val reportText = reportGen.renderReportText(report)
         val targetBaseline = baselineFile.get().asFile
         targetBaseline.parentFile?.mkdirs()
         targetBaseline.writeText(reportText)

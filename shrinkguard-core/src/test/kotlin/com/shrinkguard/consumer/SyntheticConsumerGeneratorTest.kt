@@ -31,9 +31,11 @@ class SyntheticConsumerGeneratorTest {
     }
 
     @Test
-    fun `generates keep rules for synthetic consumer`() {
+    fun `keeps every synthetic method as an entry point`() {
         val rules = generator.generateConsumerKeepRules()
         assertTrue(rules.contains("com.shrinkguard.synthetic.SyntheticConsumer"))
-        assertTrue(rules.contains("main(java.lang.String[])"))
+        // Previously only main was kept. R8 then propagated the null main passes into the helper
+        // methods, proved the receiver null, and deleted the very calls that exercise the API.
+        assertTrue(rules.contains("public static <methods>;"))
     }
 }

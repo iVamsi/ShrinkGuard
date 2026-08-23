@@ -14,8 +14,10 @@ dependencies {
     implementation(libs.asm)
     implementation(libs.asm.commons)
     implementation(libs.asm.tree)
+    implementation(libs.kotlin.metadata.jvm)
 
     testImplementation(libs.junit.jupiter)
+    testImplementation(libs.asm.util)
     testImplementation(libs.assertj.core)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

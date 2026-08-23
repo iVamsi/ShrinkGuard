@@ -9,7 +9,6 @@ object LibraryArtifactResolver {
     fun findConsumerRules(project: Project): List<File> {
         val candidates = listOf(
             project.file("consumer-rules.pro"),
-            project.file("proguard-rules.pro"),
             project.file("src/main/resources/META-INF/proguard/rules.pro"),
             project.file("src/main/resources/META-INF/proguard/${project.name}.pro")
         )
@@ -56,29 +55,31 @@ object LibraryArtifactResolver {
             files.addAll(runtimeConfig.files.filter { it.exists() })
         }
 
-        // Add Android SDK android.jar if available
-        val androidHome = System.getenv("ANDROID_HOME")
-            ?: System.getenv("ANDROID_SDK_ROOT")
-            ?: project.findProperty("sdk.dir") as? String
+        val isAndroidLibrary = project.plugins.hasPlugin("com.android.library") ||
+            project.plugins.hasPlugin("com.android.application")
 
         var hasAndroidJar = false
-        if (androidHome != null) {
-            val platformsDir = File(androidHome, "platforms")
-            if (platformsDir.exists()) {
-                val latestPlatform = platformsDir.listFiles()
-                    ?.filter { it.isDirectory && it.name.startsWith("android-") }
-                    ?.maxByOrNull { it.name }
-                if (latestPlatform != null) {
-                    val androidJar = File(latestPlatform, "android.jar")
-                    if (androidJar.exists()) {
-                        files.add(androidJar)
-                        hasAndroidJar = true
+        if (isAndroidLibrary) {
+            val androidHome = System.getenv("ANDROID_HOME")
+                ?: System.getenv("ANDROID_SDK_ROOT")
+                ?: project.findProperty("sdk.dir") as? String
+            if (androidHome != null) {
+                val platformsDir = File(androidHome, "platforms")
+                if (platformsDir.exists()) {
+                    val latestPlatform = platformsDir.listFiles()
+                        ?.filter { it.isDirectory && it.name.startsWith("android-") }
+                        ?.maxByOrNull { it.name }
+                    if (latestPlatform != null) {
+                        val androidJar = File(latestPlatform, "android.jar")
+                        if (androidJar.exists()) {
+                            files.add(androidJar)
+                            hasAndroidJar = true
+                        }
                     }
                 }
             }
         }
 
-        // Add JDK runtime stubs JAR if not an Android project with android.jar
         if (!hasAndroidJar) {
             val jdkCacheDir = File(project.rootProject.layout.buildDirectory.asFile.get(), "shrinkguard/jdk-cache")
             val jdkJar = JdkJarExtractor.getJdkLibraryJar(jdkCacheDir)

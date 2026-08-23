@@ -3,39 +3,44 @@
 
 ## Summary
 Public API members: 14
-Public API surviving unchanged: 2 (14.3%)
-Public API renamed/inlined: 12
-Internal members kept by consumer rules: 4
-Dead code members stripped: 4
+Public API surviving unchanged: 0 (0.0%)
+Public API renamed: 14
+Public API removed: 0
+Internal members retained: 7
+Dead code members stripped: 1
 Rule violations: 0
 
 ## Kept Public API Surface
-class com.example.currency.CurrencyService
-class com.example.currency.Money
 
-## Renamed / Inlined Public Members
-com.example.currency.CurrencyService#<init>()V -> <inlined/stripped>
-com.example.currency.CurrencyService#convert(Lcom/example/currency/Money;D)Lcom/example/currency/Money; -> <inlined/stripped>
-com.example.currency.Money#<init>(JLjava/lang/String;)V -> <inlined/stripped>
-com.example.currency.Money#component1()J -> <inlined/stripped>
-com.example.currency.Money#component2()Ljava/lang/String; -> <inlined/stripped>
-com.example.currency.Money#copy(JLjava/lang/String;)Lcom/example/currency/Money; -> <inlined/stripped>
-com.example.currency.Money#equals(Ljava/lang/Object;)Z -> <inlined/stripped>
-com.example.currency.Money#formatted()Ljava/lang/String; -> <inlined/stripped>
-com.example.currency.Money#getAmountMicros()J -> <inlined/stripped>
-com.example.currency.Money#getCurrencyCode()Ljava/lang/String; -> <inlined/stripped>
-com.example.currency.Money#hashCode()I -> <inlined/stripped>
-com.example.currency.Money#toString()Ljava/lang/String; -> <inlined/stripped>
+## Renamed or Removed Public Members
+com.example.currency.CurrencyService -> a.a
+com.example.currency.CurrencyService#<init>()V -> <init>
+com.example.currency.CurrencyService#convert(Lcom/example/currency/Money;D)Lcom/example/currency/Money; -> a
+com.example.currency.Money -> a.b
+com.example.currency.Money#<init>(JLjava/lang/String;)V -> <init>
+com.example.currency.Money#component1()J -> a
+com.example.currency.Money#component2()Ljava/lang/String; -> b
+com.example.currency.Money#copy(JLjava/lang/String;)Lcom/example/currency/Money; -> a
+com.example.currency.Money#equals(Ljava/lang/Object;)Z -> equals
+com.example.currency.Money#formatted()Ljava/lang/String; -> c
+com.example.currency.Money#getAmountMicros()J -> d
+com.example.currency.Money#getCurrencyCode()Ljava/lang/String; -> e
+com.example.currency.Money#hashCode()I -> hashCode
+com.example.currency.Money#toString()Ljava/lang/String; -> toString
 
-## Internal Members Kept by Consumer Rules
+## Internal Members Retained
 class com.example.currency.CurrencyService {
+    field serializer$delegate Lkotlin/Lazy;
     method serializer_delegate$lambda$0 ()Ljava/lang/Object;
 }
 class com.example.currency.Money {
     field amountMicros J
     field currencyCode Ljava/lang/String;
 }
-class com.example.currency.internal.RateSerializer
+class com.example.currency.internal.RateSerializer {
+    constructor <init> ()V
+    method serialize (Lcom/example/currency/Money;)Ljava/lang/String;
+}
 
 ## Applied Consumer Rules
 -keepclassmembers class com.example.currency.internal.RateSerializer {

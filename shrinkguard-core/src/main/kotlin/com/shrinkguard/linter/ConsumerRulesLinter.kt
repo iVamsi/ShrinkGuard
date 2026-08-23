@@ -32,7 +32,9 @@ class ConsumerRulesLinter(
             Regex("""-keep\b[^{]*\b\*\*\s*\{\s*\*\s*;\s*\}"""),
             Regex("""-keep\b[^{]*\bclass\s+\*\*\s*$"""),
             Regex("""-keep\b[^{]*\binterface\s+\*\*\s*$"""),
-            Regex("""-keep\b[^{]*\bclass\s+[a-zA-Z0-9_.]+\.\*\*\s*\{\s*\*\s*;\s*\}""")
+            Regex("""-keep\b[^{]*\bclass\s+[a-zA-Z0-9_.]+\.\*\*\s*\{\s*\*\s*;\s*\}"""),
+            Regex("""-keep\b[^{]*\bclass\s+\*\s*\{\s*\*\s*;\s*\}"""),
+            Regex("""-keepclassmembers\b[^{]*\*\*\s*\{\s*\*\s*;\s*\}""")
         )
     }
 
@@ -96,7 +98,7 @@ class ConsumerRulesLinter(
         sourceFileName: String?,
         violations: MutableList<RuleViolation>
     ) {
-        if (config.allowlistRules.any { rule.contains(it) }) {
+        if (isAllowlisted(rule)) {
             return
         }
 
@@ -136,4 +138,10 @@ class ConsumerRulesLinter(
             }
         }
     }
+    private fun isAllowlisted(rule: String): Boolean {
+        val normalized = normalizeRule(rule)
+        return config.allowlistRules.any { normalizeRule(it) == normalized }
+    }
+
+    private fun normalizeRule(rule: String): String = rule.trim().replace(Regex("\\s+"), " ")
 }

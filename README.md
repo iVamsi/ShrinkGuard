@@ -13,7 +13,7 @@ ShrinkGuard brings the `binary-compatibility-validator` (`apiDump` / `apiCheck`)
 
 ## Why ShrinkGuard?
 
-1. **Eliminates release-only crashes:** When a reflection target, serialization adapter, or JNI signature is missing keep rules, the library crashes in consumer release builds ("works in debug, crashes in release"). ShrinkGuard exercises R8 full mode directly in your library build to catch regressions in CI.
+1. **Catches release-only breakage:** When a reflection target, serialization adapter, or JNI signature is missing keep rules, the library breaks in consumer release builds ("works in debug, crashes in release"). ShrinkGuard compiles a synthetic consumer that calls your public API, runs R8 full mode over both, then reads R8's own output to record what survived, what was renamed, and what disappeared. Remove a keep rule that a reflection target depends on and the report changes, so the check fails.
 2. **Reviewable PR diffs:** Every public API member that survives, gets inlined, or is kept via consumer rules is recorded in a committed `shrink-report.txt`. Reviewers see the shrinking impact of any code or rule change directly in pull request diffs.
 3. **Rejects toxic consumer rules:** Consumer rules merge into the host application. Global directives like `-dontobfuscate` or `-dontoptimize` disable optimizations across the entire consuming app. ShrinkGuard lints rules before release and fails builds containing toxic or over-broad directives.
 
@@ -23,7 +23,7 @@ Apply the plugin in your library's `build.gradle.kts`:
 
 ```kotlin
 plugins {
-    id("io.github.ivamsi.shrinkguard") version "0.1.0"
+    id("io.github.ivamsi.shrinkguard") version "0.1.1"
 }
 
 shrinkGuard {
@@ -42,6 +42,19 @@ shrinkGuard {
 | `shrinkReport` | Executes R8 full mode against the library and writes the baseline `shrink-report.txt`. |
 | `shrinkCheck` | Lints consumer rules, runs R8 full mode, and verifies output against the committed baseline (wired into `check`). |
 
+## Reading the report
+
+`Public API renamed` is ordinary. R8 renames anything a keep rule does not pin, and applications
+are shrunk the same way, so a renamed member still works for callers compiled against it.
+
+`Public API removed` and members disappearing from **Internal Members Retained** are the signals
+that matter. Anything reached only by reflection, serialization, or JNI has to be named by a rule
+you ship, or R8 deletes it and consumers crash at runtime.
+
+The fitness run disables R8 optimization, so the report measures shrinking and obfuscation, which
+your keep rules control. Inlining decisions depend on how many call sites an application has and
+are not something a library can influence.
+
 ## Workflow
 
 1. **Generate baseline:** Run `./gradlew shrinkReport` to produce the initial `shrink-report.txt`, then commit it to git.
@@ -56,22 +69,25 @@ shrinkGuard {
 
 ## Summary
 Public API members: 14
-Public API surviving unchanged: 2 (14.3%)
-Public API renamed/inlined: 12
-Internal members kept by consumer rules: 4
-Dead code members stripped: 4
+Public API surviving unchanged: 0 (0.0%)
+Public API renamed: 14
+Public API removed: 0
+Internal members retained: 7
+Dead code members stripped: 1
 Rule violations: 0
 
 ## Kept Public API Surface
-class com.example.currency.CurrencyService
-class com.example.currency.Money
 
-## Renamed / Inlined Public Members
-com.example.currency.CurrencyService#convert(...) -> <inlined/stripped>
-com.example.currency.Money#formatted() -> <inlined/stripped>
+## Renamed or Removed Public Members
+com.example.currency.Money -> a.b
+com.example.currency.Money#formatted()Ljava/lang/String; -> c
+com.example.currency.Money#getCurrencyCode()Ljava/lang/String; -> e
 
-## Internal Members Kept by Consumer Rules
-class com.example.currency.internal.RateSerializer
+## Internal Members Retained
+class com.example.currency.internal.RateSerializer {
+    constructor <init> ()V
+    method serialize (Lcom/example/currency/Money;)Ljava/lang/String;
+}
 
 ## Applied Consumer Rules
 -keepclassmembers class com.example.currency.internal.RateSerializer {
