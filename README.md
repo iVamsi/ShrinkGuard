@@ -1,5 +1,10 @@
 # ShrinkGuard
 
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.1+-purple.svg)](https://kotlinlang.org)
+[![AGP](https://img.shields.io/badge/AGP-8.0+-green.svg)](https://developer.android.com/build)
+[![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Maven Central](https://img.shields.io/badge/Maven%20Central-0.1.1-red.svg)](https://central.sonatype.com/artifact/io.github.ivamsi/shrinkguard-core/0.1.1)
+
 R8 fitness harness and consumer rules linter for Kotlin and Android libraries.
 
 R8 full mode has been the default since AGP 8.0. [Google's guidance for library authors](https://developer.android.com/build/shrink-code#configuration-files) makes two demands: your library must not break under full mode, and your `consumer-rules.pro` must remain narrow because broad rules bloat every app that depends on you.
