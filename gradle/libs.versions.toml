@@ -5,7 +5,7 @@ r8 = "8.5.35"
 asm = "9.7.1"
 junit = "5.11.4"
 assertj = "3.27.2"
-mavenPublish = "0.30.0"
+mavenPublish = "0.37.0"
 
 [libraries]
 r8 = { module = "com.android.tools:r8", version.ref = "r8" }
