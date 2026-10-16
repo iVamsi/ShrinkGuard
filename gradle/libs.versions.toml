@@ -1,5 +1,5 @@
 [versions]
-kotlin = "2.4.20"
+kotlin = "2.4.21"
 agp = "8.7.3"
 r8 = "8.5.35"
 asm = "9.7.1"
