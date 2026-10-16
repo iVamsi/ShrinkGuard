@@ -16,7 +16,7 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
 
       - name: Install Android SDK platform
         run: sdkmanager "platforms;android-34"
