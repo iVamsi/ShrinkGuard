@@ -5,68 +5,102 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Maven Central](https://img.shields.io/badge/Maven%20Central-0.1.1-red.svg)](https://central.sonatype.com/artifact/io.github.ivamsi/shrinkguard-core/0.1.1)
 
-R8 fitness harness and consumer rules linter for Kotlin and Android libraries.
+Review R8 shrinking changes and lint consumer keep rules before publishing your Kotlin or Android library.
 
-R8 full mode has been the default since AGP 8.0. [Google's guidance for library authors](https://developer.android.com/build/shrink-code#configuration-files) makes two demands: your library must not break under full mode, and your `consumer-rules.pro` must remain narrow because broad rules bloat every app that depends on you.
+ShrinkGuard runs a synthetic consumer against your library, records what R8 retains, renames, and removes, and compares that report with a committed baseline. It also flags consumer rules that can affect every application using your library.
 
-ShrinkGuard brings the `binary-compatibility-validator` (`apiDump` / `apiCheck`) workflow to R8 shrinking:
+## Quick start
 
-```bash
-./gradlew shrinkReport   # regenerates and updates shrink-report.txt
-./gradlew shrinkCheck    # diffs against the committed report, fails on regression
-```
-
-## Why ShrinkGuard?
-
-1. **Catches release-only breakage:** When a reflection target, serialization adapter, or JNI signature is missing keep rules, the library breaks in consumer release builds ("works in debug, crashes in release"). ShrinkGuard compiles a synthetic consumer that calls your public API, runs R8 full mode over both, then reads R8's own output to record what survived, what was renamed, and what disappeared. Remove a keep rule that a reflection target depends on and the report changes, so the check fails.
-2. **Reviewable PR diffs:** Every public API member that survives, gets inlined, or is kept via consumer rules is recorded in a committed `shrink-report.txt`. Reviewers see the shrinking impact of any code or rule change directly in pull request diffs.
-3. **Rejects toxic consumer rules:** Consumer rules merge into the host application. Global directives like `-dontobfuscate` or `-dontoptimize` disable optimizations across the entire consuming app. ShrinkGuard lints rules before release and fails builds containing toxic or over-broad directives.
-
-## Installation
-
-Apply the plugin in your library's `build.gradle.kts`:
+Apply the plugin in your library module's `build.gradle.kts`:
 
 ```kotlin
 plugins {
     id("io.github.ivamsi.shrinkguard") version "0.1.1"
 }
+```
 
+Generate the first report, review it, and commit it:
+
+```bash
+./gradlew shrinkReport
+git diff -- shrink-report.txt
+git add shrink-report.txt
+git commit -m "Add reviewed shrinking baseline"
+```
+
+A new, untracked report will not appear in `git diff`; open the file to review it before committing. For multi-module builds, use the library module's task path, such as `:your-library:shrinkReport`, and commit that module's report.
+
+Validate subsequent changes locally and in your existing CI build:
+
+```bash
+./gradlew check
+```
+
+`shrinkCheck` is wired into `check`. Do not regenerate the baseline automatically in CI: doing so would replace the evidence you want to compare.
+
+## Who is it for?
+
+| Situation | How ShrinkGuard helps |
+| --- | --- |
+| Your library ships consumer keep rules | Lints global directives and broad keep patterns. |
+| You want shrinking changes visible in code review | Produces a committed text report with reviewable diffs. |
+| Your library uses reflection, serialization, or JNI | Helps spot changes to retained members that may need investigation. |
+| You need proof that a real application works after shrinking | Keep release-build integration and runtime tests; a synthetic report is not proof of runtime correctness. |
+
+Think of the workflow as `apiDump` / `apiCheck` for shrinking behavior, not as a replacement for binary compatibility checks or release-app tests.
+
+## Configuration
+
+```kotlin
 shrinkGuard {
-    baselineFile.set(file("shrink-report.txt")) // optional: defaults to shrink-report.txt
+    baselineFile.set(file("shrink-report.txt"))
     ruleLint {
-        failOnToxicFlags.set(true)              // fails on -dontobfuscate, -dontoptimize, etc.
-        failOnOverbroadRules.set(false)          // warns on -keep class com.example.** { *; }
+        failOnToxicFlags.set(true)
+        failOnOverbroadRules.set(false)
     }
 }
 ```
 
-## Tasks
+In this configuration, toxic directives fail validation; over-broad rules produce warnings. Set `failOnOverbroadRules` to true if you want them to fail validation as well.
 
 | Task | Purpose |
-| :--- | :--- |
-| `shrinkReport` | Executes R8 full mode against the library and writes the baseline `shrink-report.txt`. |
-| `shrinkCheck` | Lints consumer rules, runs R8 full mode, and verifies output against the committed baseline (wired into `check`). |
+| --- | --- |
+| `shrinkReport` | Runs the shrinking analysis and writes or updates the baseline. |
+| `shrinkCheck` | Lints consumer rules and checks the analysis against the committed baseline. |
 
-## Reading the report
+## How it works and what it cannot prove
 
-`Public API renamed` is ordinary. R8 renames anything a keep rule does not pin, and applications
-are shrunk the same way, so a renamed member still works for callers compiled against it.
+ShrinkGuard compiles a synthetic consumer that calls your public API, runs R8 full mode over the consumer and library, and reads R8 output to report retained, renamed, and removed members.
 
-`Public API removed` and members disappearing from **Internal Members Retained** are the signals
-that matter. Anything reached only by reflection, serialization, or JNI has to be named by a rule
-you ship, or R8 deletes it and consumers crash at runtime.
+The fitness run disables R8 optimization. The report measures shrinking and obfuscation, not the inlining or optimization decisions of a real consuming app.
 
-The fitness run disables R8 optimization, so the report measures shrinking and obfuscation, which
-your keep rules control. Inlining decisions depend on how many call sites an application has and
-are not something a library can influence.
+A baseline records observed behavior; it does not certify that the behavior is correct. Review the first report carefully. Reflection targets, serialization paths, JNI entry points, and application-specific behavior still require appropriate rules and runtime coverage.
 
-## Workflow
+See [Android's library keep-rule guidance](https://developer.android.com/build/shrink-code#configuration-files) for the platform context.
 
-1. **Generate baseline:** Run `./gradlew shrinkReport` to produce the initial `shrink-report.txt`, then commit it to git.
-2. **CI validation:** Run `./gradlew check`. `shrinkCheck` runs automatically and ensures no unexpected shrinking changes occurred.
-3. **Updating baseline:** When you intentionally modify public APIs or update keep rules, re-run `./gradlew shrinkReport` and commit the resulting diff.
+## Reading a report change
 
-## Sample Report (`shrink-report.txt`)
+- `Public API renamed`: renaming can be expected for statically linked callers. Investigate names that external runtime mechanisms depend on.
+- `Public API removed`: review why the member disappeared and whether consumers need it.
+- `Internal Members Retained`: investigate disappearing members used through reflection, serialization, or JNI.
+- Rule violations: inspect the reported directive and the configured warning/failure policy.
+
+When a change is intentional, regenerate the report, inspect the diff, and commit the code, rules, and baseline together. Do not accept a new baseline just to make a failing build green.
+
+## Example investigation
+
+Suppose an internal serialization adapter is present in your reviewed baseline. A later edit removes its keep rule, and the adapter disappears from the new report.
+
+1. Run `shrinkCheck` to compare against the committed baseline.
+2. Investigate the report change rather than immediately overwriting the baseline.
+3. Restore or narrow the required rule if the adapter must remain available.
+4. Run the check again and exercise the serialization path in a release consumer.
+
+This illustrates the review workflow, not a guarantee that every serialization regression is detected.
+
+## Sample report
+
+The following illustrative excerpt shows the report structure; your member names and counts will differ.
 
 ```text
 # ShrinkGuard R8 Report
@@ -93,38 +127,44 @@ class com.example.currency.internal.RateSerializer {
     constructor <init> ()V
     method serialize (Lcom/example/currency/Money;)Ljava/lang/String;
 }
-
-## Applied Consumer Rules
--keepclassmembers class com.example.currency.internal.RateSerializer {
-    public <init>();
-    public java.lang.String serialize(com.example.currency.Money);
-}
 ```
 
-## Consumer Rule Guidance
+## Consumer rule guidance
 
-### Toxic Directives (Forbidden)
-Library `consumer-rules.pro` files are merged globally into the host application. The following directives are rejected by ShrinkGuard:
-- `-dontobfuscate` (disables obfuscation globally)
-- `-dontoptimize` (disables optimizations globally)
-- `-dontshrink` (disables tree shaking globally)
-- `-repackageclasses` (forces global class repackaging)
-- `-flattenpackagehierarchy` (forces global package flattening)
-- `-optimizations` (overrides global optimization passes)
+Consumer rules are merged into the consuming application's configuration. ShrinkGuard flags these global directives as toxic:
 
-### Prefer Targeted Rules
-Avoid broad package-level wildcards that bloat consumer APKs:
+- `-dontobfuscate`
+- `-dontoptimize`
+- `-dontshrink`
+- `-repackageclasses`
+- `-flattenpackagehierarchy`
+- `-optimizations`
+
+Avoid keeping an entire package when only a specific runtime entry point needs protection:
 
 ```pro
-# BAD: Forces consumer apps to keep all classes and members in the package
+# Broad: retains the whole package and its members.
 -keep class com.example.lib.** { *; }
+```
 
-# GOOD: Targets only members needed for reflection or serialization
+A targeted member rule can be more appropriate when the containing class is already retained through another path:
+
+```pro
 -keepclassmembers class com.example.lib.internal.ModelAdapter {
     public <init>();
     public java.lang.String serialize(java.lang.Object);
 }
 ```
+
+Do not copy this rule unchanged without checking your runtime access pattern. Member retention alone is not a universal solution for a class discovered only by name.
+
+## Compatibility
+
+The repository currently advertises Kotlin 2.1+ and AGP 8.0+. This documentation update does not establish a tested version matrix or expand platform support. Validate the plugin with your library's build configuration before adding it to a release gate.
+
+## Report a problem
+
+[Open an issue](https://github.com/iVamsi/ShrinkGuard/issues) with the plugin, Gradle, Kotlin, AGP, and Java versions; a minimal library reproducer; the relevant consumer rules; and expected versus actual report or lint output. Remove private code, credentials, and sensitive paths before sharing logs.
 
 ## License
 
