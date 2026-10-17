@@ -160,7 +160,7 @@ Do not copy this rule unchanged without checking your runtime access pattern. Me
 
 ## Compatibility
 
-The repository currently advertises Kotlin 2.1+ and AGP 8.0+. This documentation update does not establish a tested version matrix or expand platform support. Validate the plugin with your library's build configuration before adding it to a release gate.
+The documented toolchain requirements are Kotlin 2.1+ and AGP 8.0+. Compatibility has not been verified across all Kotlin and AGP version combinations. Validate the plugin with your library's build configuration before adding it to a release gate.
 
 ## Report a problem
 
