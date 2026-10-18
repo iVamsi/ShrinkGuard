@@ -1,6 +1,6 @@
 [versions]
 kotlin = "2.4.21"
-agp = "8.7.3"
+agp = "9.4.1"
 r8 = "8.5.35"
 asm = "9.11"
 junit = "6.1.3"
