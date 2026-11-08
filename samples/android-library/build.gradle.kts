@@ -1,7 +1,12 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.jvm) apply false
     id("io.github.ivamsi.shrinkguard")
+    id("org.jetbrains.kotlin.android") version "2.4.21" apply false
+}
+
+// AGP 8.x requires the Kotlin Android plugin; AGP 9+ compiles Kotlin without it.
+if (providers.gradleProperty("shrinkguard.useKotlinAndroidPlugin").orNull == "true") {
+    apply(plugin = "org.jetbrains.kotlin.android")
 }
 
 android {

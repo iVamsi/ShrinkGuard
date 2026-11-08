@@ -107,7 +107,7 @@ abstract class ShrinkCheckTask : DefaultTask() {
                 rulesFiles = rulesList,
                 workingDir = workingDirectory.get().asFile,
                 appliedRules = appliedRules,
-                violations = violations
+                violations = violations,
             )
         } catch (e: ShrinkAnalysisException) {
             throw GradleException(e.message ?: "ShrinkGuard analysis failed", e.cause)

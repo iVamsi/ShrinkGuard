@@ -58,7 +58,6 @@ object LibraryArtifactResolver {
         val isAndroidLibrary = project.plugins.hasPlugin("com.android.library") ||
             project.plugins.hasPlugin("com.android.application")
 
-        var hasAndroidJar = false
         if (isAndroidLibrary) {
             val androidHome = System.getenv("ANDROID_HOME")
                 ?: System.getenv("ANDROID_SDK_ROOT")
@@ -73,19 +72,18 @@ object LibraryArtifactResolver {
                         val androidJar = File(latestPlatform, "android.jar")
                         if (androidJar.exists()) {
                             files.add(androidJar)
-                            hasAndroidJar = true
                         }
                     }
                 }
             }
         }
 
-        if (!hasAndroidJar) {
-            val jdkCacheDir = File(project.rootProject.layout.buildDirectory.asFile.get(), "shrinkguard/jdk-cache")
-            val jdkJar = JdkJarExtractor.getJdkLibraryJar(jdkCacheDir)
-            if (jdkJar != null && jdkJar.exists()) {
-                files.add(jdkJar)
-            }
+        // Kotlin and recent javac may reference JDK-only types (e.g. StringConcatFactory). R8 needs
+        // those on the library classpath even when android.jar is the platform boot classpath.
+        val jdkCacheDir = File(project.rootProject.layout.buildDirectory.asFile.get(), "shrinkguard/jdk-cache")
+        val jdkJar = JdkJarExtractor.getJdkLibraryJar(jdkCacheDir)
+        if (jdkJar != null && jdkJar.exists()) {
+            files.add(jdkJar)
         }
 
         return files

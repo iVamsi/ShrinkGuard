@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 17
 
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
 
@@ -38,3 +38,28 @@ jobs:
         with:
           name: test-reports
           path: "**/build/reports/tests/**"
+
+  samples-agp8:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+
+      - name: Install Android SDK platform
+        run: sdkmanager "platforms;android-34"
+
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+
+      - name: Pin AGP 8.7.3 and enable Kotlin Android plugin for sample
+        run: |
+          sed -i 's/agp = "9.5.0"/agp = "8.7.3"/' gradle/libs.versions.toml
+          echo "shrinkguard.useKotlinAndroidPlugin=true" >> samples/gradle.properties
+
+      - name: Build Android sample on AGP 8.7.3
+        run: ./gradlew -p samples :android-library:check

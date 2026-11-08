@@ -24,6 +24,14 @@ class DirectR8Runner : R8Runner {
                 .setOutput(outputJar.toPath(), OutputMode.ClassFile)
                 .setProguardMapOutputPath(mappingFile.toPath())
 
+            val androidPlatform = usesAndroidBootClasspath(request.libraryFiles)
+            if (androidPlatform) {
+                builder.setAndroidPlatformBuild(true)
+                // Class-file output (used for survival analysis) cannot take --min-api, so Kotlin's
+                // invokedynamic string concat is satisfied via java.base on the library classpath
+                // alongside android.jar (see LibraryArtifactResolver.resolveClasspath).
+            }
+
             for (file in request.programFiles) {
                 if (file.isDirectory) {
                     file.walkTopDown()
@@ -79,6 +87,9 @@ class DirectR8Runner : R8Runner {
             failedResult(e, diagnostics, mappingFile, configFile)
         }
     }
+
+    private fun usesAndroidBootClasspath(libraryFiles: List<File>): Boolean =
+        libraryFiles.any { it.isFile && it.name == "android.jar" }
 
     private fun failedResult(
         error: Exception,

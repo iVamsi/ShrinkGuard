@@ -2,9 +2,9 @@
 # Library: android-library
 
 ## Summary
-Public API members: 4
+Public API members: 6
 Public API surviving unchanged: 0 (0.0%)
-Public API renamed: 4
+Public API renamed: 6
 Public API removed: 0
 Internal members retained: 5
 Dead code members stripped: 0
@@ -17,6 +17,8 @@ com.example.android.crypto.CryptoStorage -> a.a
 com.example.android.crypto.CryptoStorage#<init>()V -> <init>
 com.example.android.crypto.CryptoStorage#decrypt(Ljava/lang/String;)Ljava/lang/String; -> a
 com.example.android.crypto.CryptoStorage#encrypt(Ljava/lang/String;)Ljava/lang/String; -> b
+com.example.android.crypto.KtHelperKt -> a.b
+com.example.android.crypto.KtHelperKt#greet(Ljava/lang/String;)Ljava/lang/String; -> a
 
 ## Internal Members Retained
 class com.example.android.crypto.CryptoStorage {

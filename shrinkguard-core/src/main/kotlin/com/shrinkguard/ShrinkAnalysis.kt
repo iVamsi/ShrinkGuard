@@ -28,7 +28,7 @@ class ShrinkAnalysis(private val runner: R8Runner = DirectR8Runner()) {
         rulesFiles: List<File>,
         workingDir: File,
         appliedRules: List<String>,
-        violations: List<RuleViolation>
+        violations: List<RuleViolation>,
     ): String {
         workingDir.mkdirs()
 
@@ -69,7 +69,7 @@ class ShrinkAnalysis(private val runner: R8Runner = DirectR8Runner()) {
                 ),
                 proguardRuleFiles = rulesFiles,
                 outputDir = File(workingDir, "r8-out"),
-                isFullMode = true
+                isFullMode = true,
             )
         )
 
