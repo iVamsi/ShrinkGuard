@@ -3,7 +3,7 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.1+-purple.svg)](https://kotlinlang.org)
 [![AGP](https://img.shields.io/badge/AGP-8.0+-green.svg)](https://developer.android.com/build)
 [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Maven Central](https://img.shields.io/badge/Maven%20Central-0.1.1-red.svg)](https://central.sonatype.com/artifact/io.github.ivamsi/shrinkguard-core/0.1.1)
+[![Maven Central](https://img.shields.io/badge/Maven%20Central-0.1.2-red.svg)](https://central.sonatype.com/artifact/io.github.ivamsi/shrinkguard-core/0.1.2)
 
 Review R8 shrinking changes and lint consumer keep rules before publishing your Kotlin or Android library.
 
@@ -15,7 +15,7 @@ Apply the plugin in your library module's `build.gradle.kts`:
 
 ```kotlin
 plugins {
-    id("io.github.ivamsi.shrinkguard") version "0.1.1"
+    id("io.github.ivamsi.shrinkguard") version "0.1.2"
 }
 ```
 

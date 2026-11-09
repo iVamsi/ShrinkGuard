@@ -9,6 +9,7 @@ import org.gradle.api.Task
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.compile.JavaCompile
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Isolated so JVM TestKit runs never classload AGP. [ShrinkGuardPlugin] reflects into this
@@ -24,18 +25,20 @@ internal object AndroidLibraryWiring {
     ) {
         val components = project.extensions.findByType(AndroidComponentsExtension::class.java) ?: return
         val variants = mutableListOf<Variant>()
+        val scheduled = AtomicBoolean(false)
         components.onVariants(components.selector().all()) { variant ->
             variants.add(variant)
-        }
-
-        // afterEvaluate because AGP 9 registers compile tasks after onVariants, and selecting a
-        // single variant here avoids duplicate classes when product flavors are configured.
-        project.afterEvaluate {
-            val selectedVariant = variants.firstOrNull { it.buildType == "release" }
-                ?: variants.firstOrNull()
-                ?: return@afterEvaluate
-            attachVariant(project, reportTask, selectedVariant)
-            attachVariant(project, checkTask, selectedVariant)
+            // Schedule afterEvaluate inside onVariants so it always runs after all variants are
+            // registered, regardless of plugin application order.
+            if (scheduled.compareAndSet(false, true)) {
+                project.afterEvaluate {
+                    val selectedVariant = variants.firstOrNull { it.buildType == "release" }
+                        ?: variants.firstOrNull()
+                        ?: return@afterEvaluate
+                    attachVariant(project, reportTask, selectedVariant)
+                    attachVariant(project, checkTask, selectedVariant)
+                }
+            }
         }
 
         project.tasks.matching { it.name == "check" }.configureEach { check ->
