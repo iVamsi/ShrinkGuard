@@ -231,4 +231,83 @@ class ShrinkGuardPluginTest {
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":shrinkCheck")?.outcome)
     }
+
+    @Test
+    fun `shrinkReport and shrinkCheck can run in a single Gradle invocation`() {
+        buildFile.writeText(
+            """
+            plugins {
+                kotlin("jvm") version "2.1.0"
+                id("io.github.ivamsi.shrinkguard")
+            }
+
+            repositories {
+                mavenCentral()
+                google()
+            }
+            """.trimIndent()
+        )
+
+        val srcDir = File(testProjectDir, "src/main/kotlin/com/example")
+        srcDir.mkdirs()
+        File(srcDir, "SingleRun.kt").writeText(
+            """
+            package com.example
+            class SingleRun {
+                fun run(): String = "ok"
+            }
+            """.trimIndent()
+        )
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withPluginClasspath()
+            .withArguments("shrinkCheck", "shrinkReport", "--stacktrace")
+            .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":shrinkReport")?.outcome)
+        assertEquals(TaskOutcome.SUCCESS, result.task(":shrinkCheck")?.outcome)
+    }
+
+    @Test
+    fun `works with Kotlin Multiplatform JVM libraries`() {
+        buildFile.writeText(
+            """
+            plugins {
+                kotlin("multiplatform") version "2.1.0"
+                id("io.github.ivamsi.shrinkguard")
+            }
+
+            repositories {
+                mavenCentral()
+                google()
+            }
+
+            kotlin {
+                jvm()
+            }
+            """.trimIndent()
+        )
+
+        val srcDir = File(testProjectDir, "src/commonMain/kotlin/com/example/kmp")
+        srcDir.mkdirs()
+        File(srcDir, "KmpGreeting.kt").writeText(
+            """
+            package com.example.kmp
+            class KmpGreeting {
+                fun hello(name: String): String = "Hello, ${'$'}name"
+            }
+            """.trimIndent()
+        )
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withPluginClasspath()
+            .withArguments("shrinkReport", "shrinkCheck", "--stacktrace")
+            .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":shrinkReport")?.outcome)
+        assertEquals(TaskOutcome.SUCCESS, result.task(":shrinkCheck")?.outcome)
+        assertTrue(File(testProjectDir, "shrink-report.txt").readText().contains("KmpGreeting"))
+    }
 }

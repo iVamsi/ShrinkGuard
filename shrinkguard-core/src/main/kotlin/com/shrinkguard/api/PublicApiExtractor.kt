@@ -75,6 +75,7 @@ class PublicApiExtractor {
         reader.accept(object : ClassVisitor(Opcodes.ASM9) {
             private var className: String = ""
             private var classAccess: Int = 0
+            private var isIgnoredSpecialClass: Boolean = false
             private var isPublicOrProtectedClass: Boolean = false
             private var kotlinMetadata: Metadata? = null
             private val pending = mutableListOf<MemberInfo>()
@@ -89,6 +90,14 @@ class PublicApiExtractor {
             ) {
                 className = name.replace('/', '.')
                 classAccess = access
+                isIgnoredSpecialClass = (access and Opcodes.ACC_MODULE) != 0 ||
+                    name == "module-info" ||
+                    name.endsWith("/module-info") ||
+                    name == "package-info" ||
+                    name.endsWith("/package-info")
+                if (isIgnoredSpecialClass) {
+                    return
+                }
                 val isSynthetic = (access and Opcodes.ACC_SYNTHETIC) != 0
                 val isPublic = (access and Opcodes.ACC_PUBLIC) != 0
                 val isProtected = (access and Opcodes.ACC_PROTECTED) != 0
@@ -159,6 +168,7 @@ class PublicApiExtractor {
             }
 
             override fun visitEnd() {
+                if (isIgnoredSpecialClass) return
                 val kotlinInternal = KotlinInternalMembers.from(kotlinMetadata)
                 val classIsKotlinInternal = kotlinInternal.classIsInternal
                 for (member in pending) {

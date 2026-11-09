@@ -6,7 +6,10 @@ import org.junit.jupiter.api.io.TempDir
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Handle
 import org.objectweb.asm.Opcodes
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /**
  * Kotlin targets JVM 9+ string concatenation with invokedynamic; R8 needs android.jar as a platform
@@ -26,8 +29,11 @@ class DirectR8RunnerAndroidTest {
         )
         val platforms = File(androidHome, "platforms")
         val androidJar = platforms.listFiles()
-            ?.filter { it.isDirectory && it.name.startsWith("android-") }
-            ?.maxByOrNull { it.name }
+            ?.filter { it.isDirectory && it.name.startsWith("android-") && File(it, "android.jar").isFile }
+            ?.maxWithOrNull(
+                compareBy<File> { it.name.removePrefix("android-").toIntOrNull() ?: -1 }
+                    .thenBy { it.name }
+            )
             ?.let { File(it, "android.jar") }
         org.junit.jupiter.api.Assumptions.assumeTrue(
             androidJar != null && androidJar.exists(),
@@ -55,6 +61,60 @@ class DirectR8RunnerAndroidTest {
         assertThat(result.outputArtifact).exists()
     }
 
+    @Test
+    fun `extracts classes jar from aar library dependencies`() {
+        val programDir = File(tempDir, "program").also { it.mkdirs() }
+        writeIndyStringConcatClass(programDir)
+
+        val aarFile = createSampleAar(File(tempDir, "dep.aar"))
+        val jdkJar = JdkJarExtractor.getJdkLibraryJar(File(tempDir, "jdk-cache"))
+            ?: error("Could not extract JDK library jar")
+
+        val runner = DirectR8Runner()
+        val outputDir = File(tempDir, "r8-out")
+        val result = runner.runR8(
+            R8ExecutionRequest(
+                programFiles = listOf(programDir),
+                libraryFiles = listOf(aarFile, jdkJar),
+                proguardRules = listOf("-keep class IndyConcat { *; }"),
+                outputDir = outputDir,
+            )
+        )
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(result.outputArtifact).exists()
+    }
+
+    private fun createSampleAar(aarFile: File): File {
+        val writer = ClassWriter(0)
+        writer.visit(
+            Opcodes.V11,
+            Opcodes.ACC_PUBLIC,
+            "com/example/dep/LibDep",
+            null,
+            "java/lang/Object",
+            null
+        )
+        writer.visitEnd()
+        val classBytes = writer.toByteArray()
+
+        val classesJarBytes = ByteArrayOutputStream().use { raw ->
+            ZipOutputStream(raw).use { zip ->
+                zip.putNextEntry(ZipEntry("com/example/dep/LibDep.class"))
+                zip.write(classBytes)
+                zip.closeEntry()
+            }
+            raw.toByteArray()
+        }
+
+        ZipOutputStream(aarFile.outputStream()).use { aar ->
+            aar.putNextEntry(ZipEntry("classes.jar"))
+            aar.write(classesJarBytes)
+            aar.closeEntry()
+        }
+        return aarFile
+    }
+
     private fun writeIndyStringConcatClass(outputDir: File) {
         val writer = ClassWriter(ClassWriter.COMPUTE_FRAMES)
         writer.visit(
@@ -80,7 +140,6 @@ class DirectR8RunnerAndroidTest {
             null
         )
         greet.visitCode()
-        greet.visitLdcInsn("hi \u0001")
         greet.visitVarInsn(Opcodes.ALOAD, 0)
         greet.visitInvokeDynamicInsn(
             "makeConcatWithConstants",

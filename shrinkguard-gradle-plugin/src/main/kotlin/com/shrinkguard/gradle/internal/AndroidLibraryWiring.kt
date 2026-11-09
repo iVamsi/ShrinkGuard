@@ -1,7 +1,7 @@
 package com.shrinkguard.gradle.internal
 
-import com.android.build.api.variant.LibraryAndroidComponentsExtension
-import com.android.build.api.variant.LibraryVariant
+import com.android.build.api.variant.AndroidComponentsExtension
+import com.android.build.api.variant.Variant
 import com.shrinkguard.gradle.tasks.ShrinkCheckTask
 import com.shrinkguard.gradle.tasks.ShrinkReportTask
 import org.gradle.api.Project
@@ -12,7 +12,7 @@ import org.gradle.api.tasks.compile.JavaCompile
 
 /**
  * Isolated so JVM TestKit runs never classload AGP. [ShrinkGuardPlugin] reflects into this
- * type only after `com.android.library` is applied.
+ * type only after an Android plugin (`com.android.library`, `com.android.application`, etc.) is applied.
  */
 internal object AndroidLibraryWiring {
 
@@ -22,44 +22,69 @@ internal object AndroidLibraryWiring {
         reportTask: TaskProvider<ShrinkReportTask>,
         checkTask: TaskProvider<ShrinkCheckTask>
     ) {
-        val components = project.extensions.getByType(LibraryAndroidComponentsExtension::class.java)
-        components.onVariants(components.selector().withBuildType("release")) { variant ->
-            attachClasses(project, reportTask, variant)
-            attachClasses(project, checkTask, variant)
+        val components = project.extensions.findByType(AndroidComponentsExtension::class.java) ?: return
+        val variants = mutableListOf<Variant>()
+        components.onVariants(components.selector().all()) { variant ->
+            variants.add(variant)
         }
 
-        project.tasks.named("check").configure { check ->
+        // afterEvaluate because AGP 9 registers compile tasks after onVariants, and selecting a
+        // single variant here avoids duplicate classes when product flavors are configured.
+        project.afterEvaluate {
+            val selectedVariant = variants.firstOrNull { it.buildType == "release" }
+                ?: variants.firstOrNull()
+                ?: return@afterEvaluate
+            attachVariant(project, reportTask, selectedVariant)
+            attachVariant(project, checkTask, selectedVariant)
+        }
+
+        project.tasks.matching { it.name == "check" }.configureEach { check ->
             check.dependsOn(checkTask)
         }
     }
 
-    private fun attachClasses(
+    private fun attachVariant(
         project: Project,
         taskProvider: TaskProvider<*>,
-        variant: LibraryVariant
+        variant: Variant
     ) {
         val javaTaskName = variant.computeTaskName("compile", "JavaWithJavac")
-        val kotlinTaskName = variant.computeTaskName("compile", "Kotlin")
-        // ponytail: afterEvaluate because AGP 9 registers compile tasks after onVariants.
-        // Move this into onVariants once those tasks exist there.
-        project.afterEvaluate {
-            val javaCompile = project.tasks.named(javaTaskName, JavaCompile::class.java)
-            taskProvider.configure { task ->
-                val classes = classesOf(task) ?: return@configure
-                val classpath = classpathOf(task) ?: return@configure
+        val kotlinTaskNames = listOf(
+            variant.computeTaskName("compile", "Kotlin"),
+            variant.computeTaskName("compile", "KotlinAndroid"),
+        )
+
+        taskProvider.configure { task ->
+            val classes = classesOf(task) ?: return@configure
+            val classpath = classpathOf(task) ?: return@configure
+
+            if (javaTaskName in project.tasks.names) {
+                val javaCompile = project.tasks.named(javaTaskName, JavaCompile::class.java)
                 task.dependsOn(javaCompile)
                 classes.from(javaCompile.map { it.destinationDirectory })
-                project.tasks.findByName(kotlinTaskName)?.let { kotlinTask ->
+                classpath.setFrom(
+                    javaCompile.map { it.classpath },
+                    project.provider { LibraryArtifactResolver.resolveClasspath(project, variant.name) },
+                )
+            } else {
+                classpath.setFrom(
+                    project.provider { LibraryArtifactResolver.resolveClasspath(project, variant.name) }
+                )
+            }
+
+            for (kotlinTaskName in kotlinTaskNames) {
+                if (kotlinTaskName in project.tasks.names) {
+                    val kotlinTask = project.tasks.named(kotlinTaskName)
                     task.dependsOn(kotlinTask)
                     classes.from(
-                        project.tasks.named(kotlinTaskName).map { compileTask ->
+                        kotlinTask.map { compileTask ->
                             compileTask.javaClass.methods
-                                .first { it.name == "getDestinationDirectory" }
-                                .invoke(compileTask)
+                                .firstOrNull { it.name == "getDestinationDirectory" && it.parameterCount == 0 }
+                                ?.invoke(compileTask)
+                                ?: project.files()
                         }
                     )
                 }
-                classpath.from(project.provider { LibraryArtifactResolver.resolveClasspath(project) })
             }
         }
     }

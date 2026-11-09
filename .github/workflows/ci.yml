@@ -58,7 +58,8 @@ jobs:
 
       - name: Pin AGP 8.7.3 and enable Kotlin Android plugin for sample
         run: |
-          sed -i 's/agp = "9.5.0"/agp = "8.7.3"/' gradle/libs.versions.toml
+          sed -i 's/^agp = ".*"/agp = "8.7.3"/' gradle/libs.versions.toml
+          grep -q '^agp = "8.7.3"' gradle/libs.versions.toml
           echo "shrinkguard.useKotlinAndroidPlugin=true" >> samples/gradle.properties
 
       - name: Build Android sample on AGP 8.7.3
