@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.vanniktech.maven.publish)
@@ -6,6 +8,14 @@ plugins {
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+kotlin {
+    coreLibrariesVersion = "2.1.0"
+    compilerOptions {
+        apiVersion.set(KotlinVersion.KOTLIN_2_1)
+        languageVersion.set(KotlinVersion.KOTLIN_2_1)
     }
 }
 
