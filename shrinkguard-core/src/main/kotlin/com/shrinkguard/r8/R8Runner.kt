@@ -8,7 +8,7 @@ data class R8ExecutionRequest(
     val proguardRules: List<String> = emptyList(),
     val proguardRuleFiles: List<File> = emptyList(),
     val outputDir: File,
-    val isFullMode: Boolean = true
+    val isFullMode: Boolean = true,
 )
 
 data class R8ExecutionResult(
