@@ -160,7 +160,7 @@ Do not copy this rule unchanged without checking your runtime access pattern. Me
 
 ## Compatibility
 
-ShrinkGuard targets Kotlin 2.1+ and AGP 8.0+. CI verifies the plugin and JVM sample on the default toolchain (Gradle 9.8.2, AGP 9.5.0, JDK 17) and runs the Android sample with Kotlin sources on an additional leg (AGP 8.7.3 with the Kotlin Android plugin, JDK 17). Gradle 8.x and other Kotlin or AGP combinations are not covered automatically; validate with your library's toolchain before gating releases on ShrinkGuard.
+ShrinkGuard targets Kotlin 2.1+ and AGP 8.0+. CI verifies the plugin and JVM sample on the default toolchain (Gradle 9.9.1, AGP 9.5.0, JDK 17) and runs the Android sample with Kotlin sources on an additional leg (AGP 8.7.3 with the Kotlin Android plugin, JDK 17). Gradle 8.x and other Kotlin or AGP combinations are not covered automatically; validate with your library's toolchain before gating releases on ShrinkGuard.
 
 ## Report a problem
 
